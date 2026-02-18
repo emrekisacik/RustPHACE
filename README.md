@@ -2,6 +2,10 @@
 
 The original R scripts have been converted to Rust for improved performance and modularity. Each step of the pipeline is triggered from a central entry point. Intermediate files are organized in directories during execution. The switch between Rust and IQTREE for ASR is automated using a Bash script. 
 
+### Requirements
+
+Three input files (fasta, treefile, state) are required. See example input files in ```Test_Cases/TP73/Inputs``` folder.
+
 ### Repository Structure
 
 ```text
