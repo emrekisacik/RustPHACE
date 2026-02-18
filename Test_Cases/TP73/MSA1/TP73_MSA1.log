@@ -1,0 +1,222 @@
+IQ-TREE multicore version 2.1.4-beta COVID-edition for Linux 64-bit built Jun 24 2021
+Developed by Bui Quang Minh, James Barbetti, Nguyen Lam Tung,
+Olga Chernomor, Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
+
+Host:    EMRE-KISACIK (AVX2, FMA3, 3 GB RAM)
+Command: iqtree2 -s MSA1/TP73_MSA1.fasta -te TP73.treefile -blfix -m Data/vals_MSA1.txt -asr --prefix TP73_MSA1 --seed 20 -T AUTO
+Seed:    20 (Using SPRNG - Scalable Parallel Random Number Generator)
+Time:    Wed Feb 18 19:01:34 2026
+Kernel:  AVX+FMA - auto-detect threads (4 CPU cores detected)
+
+Reading alignment file MSA1/TP73_MSA1.fasta ... Fasta format detected
+Alignment most likely contains DNA/RNA sequences
+Alignment has 168 sequences with 631 columns, 462 distinct patterns
+395 parsimony-informative, 69 singleton sites, 167 constant sites
+                Gap/Ambiguity  Composition  p-value
+   1  NP_005418.1       0.48%    failed      0.00%
+   2  XP_070923604.1    0.48%    failed      0.00%
+   3  KAL4666731.1      0.48%    failed      0.00%
+   4  NP_001119712.1    7.92%    failed      0.00%
+   5  XP_062960780.1    0.48%    failed      0.01%
+   6  KFO31789.1        0.00%    failed      0.01%
+   7  NP_001191121.1   11.41%    failed      0.00%
+   8  XP_074233707.1    0.32%    failed      0.00%
+   9  XP_041508044.1    0.00%    failed      0.01%
+  10  NP_001102166.1    0.00%    failed      0.01%
+  11  KAI5252919.1      1.11%    failed      0.00%
+  12  XP_060480572.1    0.32%    failed      0.01%
+  13  CAN8433587.1      0.00%    failed      0.00%
+  14  XP_040501606.1    0.00%    failed      0.00%
+  15  XP_015356967.1    0.16%    failed      0.05%
+  16  XP_053431908.1    0.00%    failed      0.12%
+  17  ERE82731.1        0.00%    failed      0.00%
+  18  XP_006885870.1    0.48%    failed      0.13%
+  19  KAM5322158.1      0.00%    failed      0.01%
+  20  ELV14255.1        3.96%    failed      0.00%
+  21  XP_069933170.1    0.32%    failed      0.01%
+  22  KAF6111997.1      0.00%    failed      0.45%
+  23  XP_054993762.1    0.63%    failed      3.35%
+  24  XP_057400304.1    0.16%    failed      0.02%
+  25  ELK10598.1        0.79%    failed      0.15%
+  26  XP_047580213.1    0.16%    failed      0.03%
+  27  MXQ81805.1        1.43%    passed      5.39%
+  28  XP_016069019.1    1.74%    failed      0.68%
+  29  XP_074162570.1    1.43%    failed      0.00%
+  30  XP_043851467.1    1.58%    failed      0.03%
+  31  XP_037684632.1    0.32%    passed     26.78%
+  32  NP_001119802.1    9.51%    failed      0.00%
+  33  XP_027831531.2    7.29%    failed      0.00%
+  34  ERE82728.1        0.00%    failed      0.00%
+  35  XP_055162019.1    0.00%    failed      0.00%
+  36  XP_040315215.1    2.54%    passed     19.19%
+  37  XP_008850886.1    3.33%    failed      0.18%
+  38  GAB1289312.1      0.00%    failed      0.67%
+  39  XP_070260039.1    0.48%    passed     94.58%
+  40  KAM5322157.1      4.28%    passed      6.88%
+  41  XP_039768028.1    0.32%    passed     10.44%
+  42  XP_053431910.1    7.45%    passed     12.20%
+  43  XP_030041694.1    0.48%    failed      0.02%
+  44  XP_069466339.1    0.48%    passed     17.71%
+  45  KAK2493698.1      0.95%    failed      0.10%
+  46  XDC60433.1        5.07%    failed      0.29%
+  47  XP_019396776.1    0.48%    failed      0.00%
+  48  XP_061207619.1    0.48%    failed      0.75%
+  49  KAJ1141872.1      0.63%    passed     22.70%
+  50  OCT70696.1        0.48%    passed     97.14%
+  51  XP_075394214.1   11.09%    passed     10.12%
+  52  CAD7689369.1      5.23%    passed      6.09%
+  53  CAK6440529.1      0.79%    passed     43.64%
+  54  XP_053546341.1    0.48%    passed     74.76%
+  55  XP_068095008.1    0.63%    passed     98.91%
+  56  EGW14439.1       12.04%    failed      0.01%
+  57  XP_070615185.1    0.48%    passed     74.76%
+  58  XP_071654689.1    0.48%    failed      1.61%
+  59  XP_020663685.2    0.48%    passed     17.71%
+  60  XP_005986096.2    0.95%    passed     92.35%
+  61  NXH18785.1        1.74%    passed     59.88%
+  62  KAH0514764.1     10.14%    failed      1.55%
+  63  XP_043918894.1    0.48%    passed     99.96%
+  64  XP_040285897.1    0.48%    passed     67.96%
+  65  KAL9192257.1      2.54%    passed     69.55%
+  66  XP_062821684.1    3.49%    passed     33.22%
+  67  XP_058849074.1    0.32%    passed     99.94%
+  68  XP_036299512.2   11.57%    passed     82.01%
+  69  XP_050178337.1    8.08%    failed      1.40%
+  70  NXN87981.1        3.65%    passed     62.13%
+  71  XP_039612036.1    0.48%    passed      5.84%
+  72  KAI1231485.1      7.77%    failed      0.02%
+  73  XP_070615188.1    7.77%    passed     38.83%
+  74  XP_066547489.1    0.32%    passed     94.53%
+  75  NP_001279335.1    1.74%    failed      0.45%
+  76  KAL4646060.1      0.32%    passed     80.90%
+  77  KAJ8257678.1      0.32%    passed     27.30%
+  78  XP_044301317.1   11.41%    failed      2.98%
+  79  QCO84575.1        8.56%    passed     99.60%
+  80  KAK3540719.1      0.48%    failed      0.00%
+  81  XP_062960782.1   13.31%    failed      0.06%
+  82  XP_041427435.1    7.13%    passed     84.75%
+  83  XP_048871961.1    1.74%    passed     16.90%
+  84  XP_047379194.1   13.00%    failed      0.09%
+  85  XP_076845138.1    0.32%    failed      0.08%
+  86  GAB0198876.1     11.09%    failed      0.14%
+  87  XP_030639382.1    0.16%    failed      0.06%
+  88  XP_027430428.1   13.00%    failed      1.38%
+  89  NP_899183.1       0.48%    failed      0.31%
+  90  RXN12647.1        0.48%    failed      0.47%
+  91  XP_038522414.1   12.84%    failed      0.00%
+  92  XP_046895426.1    0.00%    passed     14.82%
+  93  XP_066878534.1   13.00%    failed      0.15%
+  94  KAK2899038.1      0.48%    failed      0.20%
+  95  XP_054031707.1   11.57%    passed     65.49%
+  96  RVE70366.1        0.48%    failed      1.05%
+  97  NXN12207.1        3.96%    passed     99.87%
+  98  XP_033899108.1    8.72%    passed     98.22%
+  99  NXJ38535.1        7.13%    passed     24.08%
+ 100  MGH0143716.1      0.32%    passed     99.94%
+ 101  KAG7472816.1      8.72%    passed     70.27%
+ 102  XP_055079051.1    1.90%    failed      0.01%
+ 103  XP_068934409.1   13.31%    failed      0.02%
+ 104  XP_072304796.1    1.90%    failed      0.04%
+ 105  XP_055515684.1    9.35%    failed      0.02%
+ 106  KAG8505452.1      0.16%    passed     16.87%
+ 107  XP_029083615.1   13.00%    failed      0.24%
+ 108  XP_048096648.1    0.16%    failed      0.00%
+ 109  XP_039612041.1   11.41%    passed     32.47%
+ 110  XP_047211760.1    0.32%    failed      0.14%
+ 111  XP_008287192.1    0.32%    passed      6.08%
+ 112  XP_030639383.1    8.24%    failed      2.39%
+ 113  XP_061691102.1    0.48%    failed      0.00%
+ 114  XP_036958942.1    0.16%    failed      0.23%
+ 115  KAL2103360.1      0.16%    failed      0.00%
+ 116  AWP09459.1        0.32%    failed      0.50%
+ 117  XP_023697327.1    9.98%    failed      2.84%
+ 118  KAF4109606.1      0.16%    failed      0.00%
+ 119  XP_057682338.1    0.48%    failed      0.00%
+ 120  KAF7654840.1      3.33%    failed      0.15%
+ 121  XP_029688991.1    0.32%    failed      0.00%
+ 122  KAI4877452.1      3.65%    failed      0.33%
+ 123  XP_036434928.1   11.41%    passed      7.12%
+ 124  XP_004070406.1    9.03%    failed      0.14%
+ 125  XP_028848398.1    9.19%    failed      0.13%
+ 126  XP_046895427.1    8.40%    passed     14.66%
+ 127  XP_061759751.1    0.48%    failed      0.00%
+ 128  KAJ8388041.1     11.73%    failed      2.35%
+ 129  CAO0694423.1      0.16%    failed      0.01%
+ 130  XP_049609473.1    2.38%    failed      0.00%
+ 131  KAI3357298.1      5.39%    failed      2.83%
+ 132  XP_033825004.1   10.30%    failed      0.03%
+ 133  XP_068569045.1    7.45%    failed      0.66%
+ 134  XP_058245134.1    0.32%    failed      0.00%
+ 135  XP_063064051.1    0.16%    failed      0.00%
+ 136  NP_001191117.1   15.37%    failed      0.00%
+ 137  XP_030207329.1    0.16%    failed      0.00%
+ 138  XP_016355450.1    7.61%    failed      0.00%
+ 139  XP_069802542.1   13.31%    passed     74.34%
+ 140  XP_052459627.1   11.41%    failed      0.03%
+ 141  XP_034029070.1    8.56%    failed      0.00%
+ 142  XP_075898405.1    3.80%    failed      0.00%
+ 143  XP_041952713.1   11.09%    failed      0.00%
+ 144  XP_015823029.3    8.87%    failed      0.15%
+ 145  XP_029520115.2    2.06%    failed      0.00%
+ 146  CAG6021260.1      9.35%    passed      6.62%
+ 147  XP_056158170.1   11.09%    failed      1.99%
+ 148  XP_053705800.1    9.35%    failed      0.03%
+ 149  XP_028308989.1    8.72%    failed      0.01%
+ 150  XP_057940020.1    9.03%    failed      0.00%
+ 151  XP_076019460.1    8.72%    failed      0.16%
+ 152  XP_057682309.1    8.87%    failed      0.00%
+ 153  XP_057606606.1    2.69%    passed     96.24%
+ 154  MEQ2250535.1     13.79%    failed      1.16%
+ 155  XP_044625472.2    0.48%    failed      0.00%
+ 156  KAK6307924.1      5.07%    failed      0.00%
+ 157  XP_021471501.1    9.35%    failed      0.08%
+ 158  XP_030207355.1    8.56%    failed      0.01%
+ 159  XP_049609472.1   13.31%    failed      0.00%
+ 160  XP_028940235.1   16.01%    failed      2.79%
+ 161  TNM87265.1       12.36%    failed      0.00%
+ 162  CAL1605849.1     12.36%    failed      0.01%
+ 163  XP_072101025.1   14.58%    failed      1.94%
+ 164  TRY99461.1        8.56%    failed      0.00%
+ 165  XP_036434927.1   13.31%    failed      0.60%
+ 166  XP_062363443.1   22.19%    passed     23.12%
+ 167  TKS77391.1       13.15%    passed      6.09%
+ 168  XP_048066661.1   13.31%    failed      0.15%
+****  TOTAL             4.79%  117 sequences failed composition chi2 test (p-value<5%; df=3)
+WARNING: States(s) G, T rarely appear in alignment and may cause numerical problems
+Reading input tree file TP73.treefile ...
+Reading model parameters from file Data/vals_MSA1.txt
+Rate parameters:  A-C: 1.00000  A-G: 0.00000  A-T: 0.00000  C-G: 0.00000  C-T: 0.00000  G-T: 0.00000
+Base frequencies:  A: 0.500  C: 0.500  G: 0.000  T: 0.000
+
+NOTE: 2 MB RAM (0 GB) is required!
+Measuring multi-threading efficiency up to 4 CPU cores
+Increase to 10 rounds for branch lengths
+55 trees examined
+Threads: 1 / Time: 4.060 sec / Speedup: 1.000 / Efficiency: 100% / LogL: -31639
+Threads: 2 / Time: 3.694 sec / Speedup: 1.099 / Efficiency: 55% / LogL: -31639
+Threads: 3 / Time: 3.646 sec / Speedup: 1.113 / Efficiency: 37% / LogL: -31639
+BEST NUMBER OF THREADS: 2
+
+Estimate model parameters (epsilon = 0.010)
+1. Initial log-likelihood: -15376.820
+Optimal log-likelihood: -15376.820
+Rate parameters:  A-C: 1.00000  A-G: 0.00000  A-T: 0.00000  C-G: 0.00000  C-T: 0.00000  G-T: 0.00000
+Base frequencies:  A: 0.500  C: 0.500  G: 0.000  T: 0.000
+Parameters optimization took 1 rounds (0.002 sec)
+BEST SCORE FOUND : -15376.820
+Ancestral state probabilities printed to TP73_MSA1.state
+Total tree length: 8.759
+
+Total number of iterations: 0
+CPU time used for tree search: 0.000 sec (0h:0m:0s)
+Wall-clock time used for tree search: 0.000 sec (0h:0m:0s)
+Total CPU time used: 22.151 sec (0h:0m:22s)
+Total wall-clock time used: 11.823 sec (0h:0m:11s)
+
+Analysis results written to: 
+  IQ-TREE report:                TP73_MSA1.iqtree
+  Maximum-likelihood tree:       TP73_MSA1.treefile
+  Ancestral state:               TP73_MSA1.state
+  Screen log file:               TP73_MSA1.log
+
+Date and Time: Wed Feb 18 19:01:45 2026

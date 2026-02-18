@@ -29,7 +29,7 @@ cargo run phace "${id}"
 
 # DIRECTORIES
 
-mkdir Inputs/
+mkdir -p Inputs/
 mv "${id}_MaskedMSA.fasta" "${id}.treefile" "${id}.state" Inputs/
 
 dir="Test_Cases/${id}"

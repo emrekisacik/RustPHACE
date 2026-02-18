@@ -3,39 +3,37 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 
-// --- Configuration Constants ---
-// Used for mapping characters to array indices
 const AMINO_ACIDS: [&str; 20] = [
     "G", "A", "L", "M", "F", "W", "K", "Q", "E", "S", 
     "P", "V", "I", "C", "Y", "H", "R", "N", "D", "T"
 ];
 
-// --- Data Structures ---
+fn canonicalize_id(label: &str) -> String {
+    let mut s = label.replace("'", "").replace("\"", "");
+    s = s.replace("Node", "").replace("Branch", "");
+    let trimmed = s.trim();
+    if let Ok(num) = trimmed.parse::<usize>() {
+        return num.to_string();
+    }
+    trimmed.to_string()
+}
 
 #[derive(Debug, Clone)]
 struct TreeNode {
-    label: String,
-    parent_id: Option<usize>, // None for the root
+    raw_label: String,
+    clean_id: String,
+    parent_id: Option<usize>,
     branch_length: f64,
-    children: Vec<usize>,     // IDs of child nodes
+    children: Vec<usize>,
 }
 
 struct ParsedTree {
     nodes: HashMap<usize, TreeNode>,
-    leaves: Vec<usize>,   // IDs of leaf nodes
-    internal: Vec<usize>, // IDs of internal nodes
-    root_id: usize,       // Specific ID of the root
+    leaves: Vec<usize>,
+    internal: Vec<usize>,
+    root_id: usize,
 }
 
-// --- Helper Functions ---
-
-fn aa_to_num(aa: &str) -> usize {
-    AMINO_ACIDS.iter().position(|&r| r == aa).unwrap_or(20)
-}
-
-// --- Parsers ---
-
-/// Reads a FASTA file into a HashMap where Key = Header, Value = Vector of characters
 fn read_fasta(path: &str) -> io::Result<HashMap<String, Vec<String>>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
@@ -49,36 +47,29 @@ fn read_fasta(path: &str) -> io::Result<HashMap<String, Vec<String>>> {
         if trimmed.is_empty() { continue; }
 
         if trimmed.starts_with('>') {
-            // If we hit a new header, save the previous sequence (if it exists)
             if !current_header.is_empty() {
-                let seq_vec: Vec<String> = current_seq.chars().map(|c| c.to_string()).collect();
-                msa.insert(current_header, seq_vec);
+                let seq: Vec<String> = current_seq.chars().map(|c| c.to_string()).collect();
+                msa.insert(current_header, seq);
             }
-            // Parse new header (remove '>')
             current_header = trimmed[1..].trim().to_string();
             current_seq = String::new();
         } else {
-            // Append sequence lines (handles multiline FASTA)
             current_seq.push_str(trimmed);
         }
     }
-    // Save the very last sequence in the file
     if !current_header.is_empty() {
-        let seq_vec: Vec<String> = current_seq.chars().map(|c| c.to_string()).collect();
-        msa.insert(current_header, seq_vec);
+        let seq: Vec<String> = current_seq.chars().map(|c| c.to_string()).collect();
+        msa.insert(current_header, seq);
     }
     Ok(msa)
 }
 
-/// Parses a Newick format tree file manually to match the logic of R's 'ape' package
 fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
     let file = File::open(path)?;
     let mut content = String::new();
     BufReader::new(file).read_line(&mut content)?;
     let content = content.trim().trim_end_matches(';');
 
-    // 1. Tokenize the Newick string
-    // Splits input into: '(', ')', ',', ':', and labels/lengths
     let mut tokens = Vec::new();
     let mut buffer = String::new();
     let chars: Vec<char> = content.chars().collect();
@@ -86,14 +77,12 @@ fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
     while i < chars.len() {
         match chars[i] {
             '(' | ')' | ',' | ':' => {
-                if !buffer.is_empty() {
-                    tokens.push(buffer.clone());
-                    buffer.clear();
-                }
+                let token = buffer.trim();
+                if !token.is_empty() { tokens.push(token.to_string()); }
+                buffer.clear();
                 tokens.push(chars[i].to_string());
             }
             '\'' => {
-                // Handle quoted labels
                 buffer.push('\'');
                 i += 1;
                 while i < chars.len() && chars[i] != '\'' {
@@ -106,55 +95,32 @@ fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
         }
         i += 1;
     }
-    if !buffer.is_empty() { tokens.push(buffer); }
+    if !buffer.trim().is_empty() { tokens.push(buffer.trim().to_string()); }
 
-    // Temporary structure for parsing before we re-index IDs
-    struct TmpNode {
-        lbl: String,
-        len: f64,
-        children: Vec<usize>,
-        is_leaf: bool,
-    }
+    struct TmpNode { lbl: String, len: f64, children: Vec<usize>, is_leaf: bool }
     let mut tmp_nodes = Vec::new();
-    
-    // 2. Recursive Parsing Function
-    // Consumes tokens and builds the TmpNode hierarchy
-    fn parse_subtree(
-        tokens: &[String], 
-        pos: &mut usize, 
-        nodes: &mut Vec<TmpNode>
-    ) -> usize {
-        let start_token = &tokens[*pos];
-        let my_idx = nodes.len();
-        nodes.push(TmpNode { lbl: String::new(), len: 0.0, children: vec![], is_leaf: false }); 
 
-        if start_token == "(" {
-            // Internal Node: Recurse for children
-            *pos += 1; 
+    fn parse_recur(tokens: &[String], pos: &mut usize, nodes: &mut Vec<TmpNode>) -> usize {
+        let my_idx = nodes.len();
+        nodes.push(TmpNode { lbl: String::new(), len: 0.0, children: vec![], is_leaf: false });
+        
+        if tokens[*pos] == "(" {
+            *pos += 1;
             loop {
-                let child_idx = parse_subtree(tokens, pos, nodes);
-                nodes[my_idx].children.push(child_idx);
-                
+                let child = parse_recur(tokens, pos, nodes);
+                nodes[my_idx].children.push(child);
                 if *pos >= tokens.len() { break; }
-                let t = &tokens[*pos];
-                if t == "," {
-                    *pos += 1; 
-                } else if t == ")" {
-                    *pos += 1; 
-                    break;
-                } else {
-                    break;
-                }
+                if tokens[*pos] == "," { *pos += 1; }
+                else if tokens[*pos] == ")" { *pos += 1; break; }
+                else { break; }
             }
             nodes[my_idx].is_leaf = false;
         } else {
-            // Leaf Node
-            nodes[my_idx].lbl = start_token.clone();
+            nodes[my_idx].lbl = tokens[*pos].clone();
             nodes[my_idx].is_leaf = true;
             *pos += 1;
         }
 
-        // Check for Label after closing parenthesis or leaf name
         if *pos < tokens.len() {
             let t = &tokens[*pos];
             if t != ":" && t != "," && t != ")" && t != ";" {
@@ -162,11 +128,11 @@ fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
                 *pos += 1;
             }
         }
-        // Check for Branch Length
         if *pos < tokens.len() && tokens[*pos] == ":" {
             *pos += 1;
             if *pos < tokens.len() {
-                nodes[my_idx].len = tokens[*pos].parse::<f64>().unwrap_or(0.0);
+                let len_str = tokens[*pos].replace(")", "").replace(",", ""); 
+                nodes[my_idx].len = len_str.parse::<f64>().unwrap_or(0.0);
                 *pos += 1;
             }
         }
@@ -174,78 +140,63 @@ fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
     }
 
     let mut pos = 0;
-    let root_tmp_index = parse_subtree(&tokens, &mut pos, &mut tmp_nodes);
+    let root_tmp = parse_recur(&tokens, &mut pos, &mut tmp_nodes);
 
-    // 3. Re-indexing
-    // Order: Leaves (1..N) -> Root (N+1) -> Other Internals (N+2..)
-    fn traverse_collect(
-        curr: usize, 
-        nodes: &Vec<TmpNode>, 
-        leaves: &mut Vec<usize>, 
-        internals: &mut Vec<usize>
-    ) {
+    fn collect_indices(curr: usize, nodes: &Vec<TmpNode>, leaves: &mut Vec<usize>, internals: &mut Vec<usize>) {
         if nodes[curr].is_leaf {
             leaves.push(curr);
         } else {
-            for &c in &nodes[curr].children {
-                traverse_collect(c, nodes, leaves, internals);
-            }
+            for &c in &nodes[curr].children { collect_indices(c, nodes, leaves, internals); }
             internals.push(curr);
         }
     }
-
     let mut ordered_leaves = Vec::new();
-    let mut ordered_internals_post = Vec::new(); 
-    traverse_collect(root_tmp_index, &tmp_nodes, &mut ordered_leaves, &mut ordered_internals_post);
+    let mut ordered_internals = Vec::new();
+    collect_indices(root_tmp, &tmp_nodes, &mut ordered_leaves, &mut ordered_internals);
 
     let num_leaves = ordered_leaves.len();
+    let mut map_old_new = HashMap::new();
     let mut final_nodes = HashMap::new();
-    let mut new_id_map = HashMap::new(); 
+    let mut final_leaves = Vec::new();
+    let mut final_internals = Vec::new();
 
-    // Assign IDs: Leaves first
-    for (i, &tmp_idx) in ordered_leaves.iter().enumerate() {
-        new_id_map.insert(tmp_idx, i + 1);
+    for (i, &old) in ordered_leaves.iter().enumerate() {
+        let new_id = i + 1;
+        map_old_new.insert(old, new_id);
+        final_leaves.push(new_id);
     }
-    // Assign Root ID
-    let final_root_id = num_leaves + 1;
-    new_id_map.insert(root_tmp_index, final_root_id);
-
-    // Assign remaining Internal IDs
+    let root_final_id = num_leaves + 1;
+    map_old_new.insert(root_tmp, root_final_id);
+    
     let mut next_internal = num_leaves + 2;
-    for &tmp_idx in &ordered_internals_post {
-        if tmp_idx != root_tmp_index {
-            new_id_map.insert(tmp_idx, next_internal);
+    for &old in &ordered_internals {
+        if old != root_tmp {
+            map_old_new.insert(old, next_internal);
             next_internal += 1;
         }
     }
+    final_internals.push(root_final_id);
+    for &old in &ordered_internals {
+        if old != root_tmp { final_internals.push(map_old_new[&old]); }
+    }
+    final_internals.sort();
 
-    let mut leaves_final = Vec::new();
-    let mut internals_final = Vec::new();
-
-    // 4. Construct Final Tree
-    for (tmp_idx, node) in tmp_nodes.iter().enumerate() {
-        if !new_id_map.contains_key(&tmp_idx) { continue; }
-
-        let my_id = new_id_map[&tmp_idx];
-        let child_ids: Vec<usize> = node.children.iter()
-            .map(|c| *new_id_map.get(c).unwrap())
-            .collect();
+    for (old, new_id) in &map_old_new {
+        let tmp = &tmp_nodes[*old];
+        let children: Vec<usize> = tmp.children.iter().map(|c| map_old_new[c]).collect();
+        let clean = canonicalize_id(&tmp.lbl);
         
-        let final_node = TreeNode {
-            label: node.lbl.clone(),
-            parent_id: None, // Will be filled in the next step
-            branch_length: node.len,
-            children: child_ids,
-        };
-        
-        final_nodes.insert(my_id, final_node);
-        if node.is_leaf { leaves_final.push(my_id); } else { internals_final.push(my_id); }
+        final_nodes.insert(*new_id, TreeNode {
+            raw_label: tmp.lbl.clone(),
+            clean_id: clean,
+            parent_id: None,
+            branch_length: tmp.len,
+            children,
+        });
     }
 
-    // 5. Back-fill Parent IDs
-    // Iterate all nodes, look at their children, and tell the children who their parent is
-    let keys: Vec<usize> = final_nodes.keys().cloned().collect();
-    for pid in keys {
+    let ids: Vec<usize> = final_nodes.keys().cloned().collect();
+    for pid in ids {
         let children = final_nodes[&pid].children.clone();
         for cid in children {
             if let Some(child) = final_nodes.get_mut(&cid) {
@@ -254,60 +205,80 @@ fn read_tree_structure(path: &str) -> io::Result<ParsedTree> {
         }
     }
 
-    leaves_final.sort();
-    internals_final.sort();
-
-    Ok(ParsedTree {
-        nodes: final_nodes,
-        leaves: leaves_final,
-        internal: internals_final,
-        root_id: final_root_id,
-    })
+    Ok(ParsedTree { nodes: final_nodes, leaves: final_leaves, internal: final_internals, root_id: root_final_id })
 }
 
-/// Reads the ancestral state reconstruction file (e.g., from IQ-TREE)
-/// Returns a Map of (NodeName, Site) -> [Probabilities of 20 AAs]
 fn read_state_file(path: &str) -> io::Result<(HashMap<(String, usize), Vec<f64>>, usize)> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
 
-    // Parse Header to find which columns correspond to which Amino Acids
-    let header_line = lines.next().ok_or(io::Error::new(io::ErrorKind::InvalidData, "Empty state file"))??;
-    let headers: Vec<String> = header_line.split('\t').map(|s| s.trim().to_string()).collect();
+    let mut header_line = String::new();
+    
+    while let Some(line_res) = lines.next() {
+        let line = line_res?;
+        let trimmed = line.trim();
+        if !trimmed.is_empty() && !trimmed.starts_with('#') {
+            header_line = line;
+            break;
+        }
+    }
+
+    if header_line.is_empty() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "State file contains no valid header"));
+    }
+
+    let delimiter = if header_line.contains('\t') { '\t' } else { ' ' };
+    let headers: Vec<String> = header_line.split(delimiter)
+        .map(|s| s.trim().replace("\"", "").replace("'", "")) 
+        .filter(|s| !s.is_empty())
+        .collect();
 
     let mut col_map = HashMap::new(); 
-    let mut node_col_idx = 0;
-    let mut site_col_idx = 1;
+    let mut node_col_idx = None;
+    let mut site_col_idx = None;
 
     for (i, h) in headers.iter().enumerate() {
-        if h == "Node" { node_col_idx = i; }
-        else if h == "Site" { site_col_idx = i; }
-        else if h.starts_with("p_") {
-            // e.g., "p_A", "p_C"
-            let aa_str = h.trim_start_matches("p_");
-            let aa_idx = aa_to_num(aa_str);
-            if aa_idx < 20 {
-                col_map.insert(i, aa_idx);
+        let h_upper = h.to_uppercase();
+        
+        if h_upper == "NODE" { 
+            node_col_idx = Some(i); 
+        } else if h_upper == "SITE" { 
+            site_col_idx = Some(i); 
+        } else {
+            let aa_clean = h_upper.replace("P_", "").trim().to_string();
+            if let Some(pos) = AMINO_ACIDS.iter().position(|&a| a == aa_clean) {
+                col_map.insert(i, pos);
             }
         }
     }
 
+    if col_map.is_empty() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "No AA columns found in header"));
+    }
+    
+    let node_idx = node_col_idx.ok_or(io::Error::new(io::ErrorKind::InvalidData, "Missing 'Node' column"))?;
+    let site_idx = site_col_idx.ok_or(io::Error::new(io::ErrorKind::InvalidData, "Missing 'Site' column"))?;
+
     let mut data = HashMap::new();
     let mut max_site = 0;
 
-    // Parse Data Rows
     for line in lines {
         let line = line?;
-        if line.trim().is_empty() { continue; }
-        let cols: Vec<&str> = line.split('\t').collect();
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') { continue; }
         
-        if cols.len() <= site_col_idx || cols.len() <= node_col_idx { continue; }
+        let cols: Vec<&str> = line.split(delimiter)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+        
+        if cols.len() <= site_idx || cols.len() <= node_idx { continue; }
 
-        let raw_node = cols[node_col_idx].trim();
-        let node_label = raw_node.replace("Node", ""); 
+        let raw_node = cols[node_idx];
+        let clean_node_id = canonicalize_id(raw_node); 
         
-        let site_str = cols[site_col_idx].trim();
+        let site_str = cols[site_idx];
         let site: usize = match site_str.parse() {
             Ok(s) => s,
             Err(_) => continue, 
@@ -317,185 +288,143 @@ fn read_state_file(path: &str) -> io::Result<(HashMap<(String, usize), Vec<f64>>
         let mut probs = vec![0.0; 20];
         for (&col_i, &aa_i) in &col_map {
             if col_i < cols.len() {
-                let val: f64 = cols[col_i].trim().parse().unwrap_or(0.0);
-                probs[aa_i] = val;
+                probs[aa_i] = cols[col_i].parse().unwrap_or(0.0);
             }
         }
-        data.insert((node_label, site), probs);
+        data.insert((clean_node_id, site), probs);
     }
+    
     Ok((data, max_site))
 }
 
-// --- Logic ---
-
-/// The Core Algorithm: Calculates tolerance scores for a specific position
-/// Compares ancestral probabilities between Parent and Child nodes, weighted by distance
-fn calculate_position_score(
-    pos: usize,
-    tree: &ParsedTree,
-    state_data: &HashMap<(String, usize), Vec<f64>>,
+fn calculate_score(
+    pos: usize, 
+    tree: &ParsedTree, 
+    state: &HashMap<(String, usize), Vec<f64>>,
     msa: &HashMap<String, Vec<String>>,
     weights: &HashMap<usize, f64>
 ) -> Vec<f64> {
-
-    let num_leaves = tree.leaves.len();
-    let num_nodes = tree.internal.len();
-    let root_id = tree.root_id;
-
-    // 1. Prepare Matrix Probabilities (Ancestral States for Internal Nodes)
-    let mut matrix_prob: HashMap<usize, Vec<f64>> = HashMap::new();
+    
+    let mut node_probs: HashMap<usize, Vec<f64>> = HashMap::new();
+    
     for &nid in &tree.internal {
-        let label_raw = &tree.nodes[&nid].label;
-        let label_clean = label_raw.replace("Node", "");
-        let mut p = match state_data.get(&(label_clean, pos)) {
+        let clean = &tree.nodes[&nid].clean_id;
+        let mut p = match state.get(&(clean.clone(), pos)) {
             Some(v) => v.clone(),
-            None => vec![0.0; 20], 
+            None => vec![0.0; 20],
         };
-        // Apply threshold to reduce noise
-        for val in &mut p { if *val < 0.01 { *val = 0.0; } }
-        matrix_prob.insert(nid, p);
+        for x in &mut p { if *x < 0.01 { *x = 0.0; } }
+        node_probs.insert(nid, p);
     }
 
-    // 2. Prepare Leaf Vectors (One-hot encoding of observed MSA data)
-    let mut prob_leaves: HashMap<usize, Vec<f64>> = HashMap::new();
-    let mut gaps: HashSet<usize> = HashSet::new(); 
+    let mut leaf_probs: HashMap<usize, Vec<f64>> = HashMap::new();
+    let mut gaps = HashSet::new();
+
     for &lid in &tree.leaves {
-        let label = &tree.nodes[&lid].label;
-        let mut is_gap = true;
+        let label = &tree.nodes[&lid].raw_label;
         let mut v = vec![0.0; 20];
+        let mut is_gap = true;
+        
         if let Some(seq) = msa.get(label) {
-            // Convert 1-based pos to 0-based index
             if pos <= seq.len() && pos > 0 {
-                let aa_char = &seq[pos - 1]; 
-                let aa_idx = aa_to_num(aa_char);
-                if aa_idx < 20 {
-                    v[aa_idx] = 1.0; // Certainty for observed AA
+                let aa = seq[pos-1].to_uppercase();
+                if let Some(idx) = AMINO_ACIDS.iter().position(|&a| a == aa) {
+                    v[idx] = 1.0;
                     is_gap = false;
                 }
             }
         }
         if is_gap { gaps.insert(lid); }
-        prob_leaves.insert(lid, v);
+        leaf_probs.insert(lid, v);
     }
 
-    // 3. Calculation Loop
-    // Iterates over every Amino Acid to calculate a score for that AA at this position
-    let mut final_scores = vec![0.0; 20];
-    let root_pr = matrix_prob.get(&root_id).cloned().unwrap_or(vec![0.0; 20]);
+    let mut scores = vec![0.0; 20];
+    let root_p = node_probs.get(&tree.root_id).cloned().unwrap_or(vec![0.0; 20]);
 
     for aa_i in 0..20 {
         let mut score = 0.0;
 
-        // Part A: Internal Nodes Contribution
-        if num_nodes > 1 {
-            for &child_id in &tree.internal {
-                if child_id == root_id { continue; }
-                
-                if let Some(parent_id) = tree.nodes[&child_id].parent_id {
-                    // Compare Parent Prob vs Child Prob
-                    if let Some(parent_probs) = matrix_prob.get(&parent_id) {
-                        let child_probs = matrix_prob.get(&child_id).unwrap();
-                        let pp = parent_probs[aa_i];
-                        let cp = child_probs[aa_i];
-                        
-
-                        let mut diff = pp - cp;
-                        if diff < 0.0 { diff = 0.0; }
-
-                        // Weight by the Parent's distance factor
-                        let w = weights.get(&parent_id).unwrap_or(&0.0);
-                        score += w * diff;
+        for &child_id in &tree.internal {
+            if child_id == tree.root_id { continue; }
+            if let Some(pid) = tree.nodes[&child_id].parent_id {
+                if let Some(pp) = node_probs.get(&pid) {
+                    if let Some(cp) = node_probs.get(&child_id) {
+                        let diff = (pp[aa_i] - cp[aa_i]).max(0.0);
+                        let w = weights.get(&pid).unwrap_or(&0.0);
+                        score += diff * w;
                     }
                 }
             }
         }
 
-        // Part B: Root Contribution
-        score += root_pr[aa_i];
+        score += root_p[aa_i];
 
-        // Part C: Leaves Contribution
-        let mut s1 = 0.0;
+        let mut s_leaf = 0.0;
         for &lid in &tree.leaves {
-            if gaps.contains(&lid) { continue; } // Skip gaps
-            if let Some(parent_id) = tree.nodes[&lid].parent_id {
-                if let Some(parent_probs) = matrix_prob.get(&parent_id) {
-                    let leaf_val = prob_leaves[&lid][aa_i]; // 1.0 or 0.0
-                    let parent_val = parent_probs[aa_i];
-                    
-                    let mut diff = leaf_val - parent_val;
-                    if diff < 0.0 { diff = 0.0; }
-
+            if gaps.contains(&lid) { continue; }
+            if let Some(pid) = tree.nodes[&lid].parent_id {
+                if let Some(pp) = node_probs.get(&pid) {
+                    let diff = (leaf_probs[&lid][aa_i] - pp[aa_i]).max(0.0);
                     let w = weights.get(&lid).unwrap_or(&0.0);
-                    s1 += w * diff;
+                    s_leaf += diff * w;
                 }
             }
         }
-        score += s1;
-
-        // Part D: Normalize by total number of nodes
-        final_scores[aa_i] = score / ((num_nodes + num_leaves) as f64);
+        score += s_leaf;
+        scores[aa_i] = score / ((tree.internal.len() + tree.leaves.len()) as f64);
     }
-
-    final_scores
+    scores
 }
 
-// --- Entry Point ---
-
 pub fn tolerance(id: &str) -> Result<(), Box<dyn Error>> {
-    // Define input/output filenames
     let file_fasta = format!("{}_MaskedMSA.fasta", id);
     let file_nwk = format!("{}.treefile", id);
     let file_rst = format!("{}.state", id);
     let output_path = format!("ToleranceScores/{}.csv", id);
 
-    // Read Data
-    let tree = read_tree_structure(&file_nwk)?; 
+    let tree = read_tree_structure(&file_nwk)?;
     let msa = read_fasta(&file_fasta)?;
-    let (state_data, total_pos) = read_state_file(&file_rst)?;
-
-    // --- Weights Calculation ---
-    // Calculates a weight for each node based on its distance from the root
-    // Uses a Gaussian-like kernel: exp(-dist^2 / mean_dist^2)
-    let mut dists: HashMap<usize, f64> = HashMap::new();
+    let (state, total_pos) = read_state_file(&file_rst)?;
+    
+    let mut dists = HashMap::new();
     let mut stack = vec![(tree.root_id, 0.0)];
     
-    // DFS to calculate cumulative branch lengths from root
     while let Some((curr, d)) = stack.pop() {
         dists.insert(curr, d);
-        let node = &tree.nodes[&curr];
-        for &child in &node.children {
-            let child_len = tree.nodes[&child].branch_length;
-            stack.push((child, d + child_len));
+        for &child in &tree.nodes[&curr].children {
+            let len = tree.nodes[&child].branch_length;
+            stack.push((child, d + len));
         }
     }
-
-    let dist_values: Vec<f64> = dists.values().cloned().collect();
-    if dist_values.is_empty() { return Err("Tree invalid.".into()); }
     
-    let sum_dist: f64 = dist_values.iter().sum();
-    let mean_dist = sum_dist / (dist_values.len() as f64);
+    let sum_dist: f64 = dists.values().sum();
+    let count_dist = dists.len() as f64;
+    let mean_dist = sum_dist / count_dist;
     
     let mut weights = HashMap::new();
-    for (id, d) in dists {
+    for (node, d) in dists {
         let w = (- (d.powi(2)) / mean_dist.powi(2)).exp();
-        weights.insert(id, w);
+        weights.insert(node, w);
     }
 
-    // --- Output Generation ---
-    let _ = std::fs::create_dir_all("ToleranceScores");
-    let file = File::create(&output_path)?;
+    std::fs::create_dir_all("ToleranceScores")?;
+    let file = File::create(output_path)?;
     let mut writer = std::io::BufWriter::new(file);
 
-    // Write Header
     write!(writer, "Pos/AA")?;
-    for aa in AMINO_ACIDS.iter() { write!(writer, ",{}", aa)?; }
+    for aa in AMINO_ACIDS { write!(writer, ",{}", aa)?; }
     writeln!(writer)?;
 
-    // Process every site and write rows
     for ps in 1..=total_pos {
-        let scores = calculate_position_score(ps, &tree, &state_data, &msa, &weights);
+        let scores = calculate_score(ps, &tree, &state, &msa, &weights);
         write!(writer, "{}", ps)?;
-        for s in scores { write!(writer, ",{}", s)?; }
+        for s in &scores { 
+            if *s == 0.0 {
+                write!(writer, ",0")?;
+            } else {
+                write!(writer, ",{:.18}", s)?; 
+            }
+        }
         writeln!(writer)?;
     }
     
