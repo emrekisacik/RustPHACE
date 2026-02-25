@@ -18,19 +18,16 @@ pub fn msa1(id: &str) -> Result<()> {
         .from_path(&csv_path)
         .context(format!("Failed to read CSV: {}", csv_path))?;
 
-    // Parse the header to map column indices to Amino Acid names
     let headers = rdr.headers()?.clone();
     let aa_names: Vec<String> = headers.iter().skip(1).take(20).map(|s| s.to_string()).collect();
 
     let mut scores_matrix: Vec<HashMap<String, f64>> = Vec::new();
     let log_eps = EPS.ln();
 
-    // Iterate through each row (position) in the CSV
     for result in rdr.records() {
         let record = result?;
         let mut row_scores = HashMap::new();
 
-        // Apply logarithmic transformation to normalize scores: 1 - log(val + eps) / log(eps)
         for (i, aa) in aa_names.iter().enumerate() {
             let val: f64 = record[i + 1].parse().unwrap_or(0.0);
             let transformed_val = 1.0 - (val + EPS).ln() / log_eps;
@@ -40,11 +37,9 @@ pub fn msa1(id: &str) -> Result<()> {
     }
 
     // --- Step 2: Read Input FASTA MSA ---
-    // Note: The 'mut' keyword was removed here as per previous compiler warning fixes
     let reader = fasta::Reader::from_file(&fasta_path)
         .context(format!("Failed to read FASTA: {}", fasta_path))?;
 
-    // Load all sequences into memory to allow in-place modification
     let mut records: Vec<(String, Vec<u8>)> = reader.records()
         .map(|r| {
             let rec = r.unwrap();
@@ -60,14 +55,12 @@ pub fn msa1(id: &str) -> Result<()> {
 
     // --- Step 3: Process Each Column of the MSA ---
     for i in 0..seq_len {
-        // Ensure we don't exceed the number of rows in our score matrix
         if i >= scores_matrix.len() {
             break; 
         }
 
         let sc = &scores_matrix[i];
 
-        // Frequency count: Determine which Amino Acid is most common at this position (ignoring gaps)
         let mut counts: HashMap<u8, usize> = HashMap::new();
         for (_, seq) in &records {
             let aa = seq[i];
@@ -76,38 +69,40 @@ pub fn msa1(id: &str) -> Result<()> {
             }
         }
 
-        // Skip processing if the column contains only gaps
         if counts.is_empty() {
             continue; 
         }
 
-        // Identify the Dominant Amino Acid (highest frequency)
+        // Predictable Tie-Breaking
+        // If frequencies are equal, break the tie by choosing the alphabetically first AA (mimicking R's table() sort).
         let dom_byte = counts.into_iter()
-            .max_by(|a, b| a.1.cmp(&b.1))
+            .max_by(|a, b| {
+                match a.1.cmp(&b.1) {
+                    std::cmp::Ordering::Equal => b.0.cmp(&a.0), // Reverse byte comparison ensures A wins over V
+                    other => other,
+                }
+            })
             .map(|(k, _)| k)
             .unwrap();
         
         let dom_str = String::from_utf8(vec![dom_byte]).unwrap();
 
-        // Define Tolerance Threshold: Any AA with a score >= the dominant AA's score is "tolerated"
-        let dom_score = sc.get(&dom_str).unwrap_or(&0.0);
-        
         let mut tolerated_aas: Vec<u8> = Vec::new();
-        tolerated_aas.push(dom_byte); // Ensure the dominant AA itself is included
+        tolerated_aas.push(dom_byte); 
 
-        for (aa_name, score) in sc {
-            if score > dom_score {
-                if let Some(byte) = aa_name.bytes().next() {
-                    tolerated_aas.push(byte);
+        // Strict Fallback for Missing Amino Acids
+        // Only evaluate tolerance if the dominant AA actually exists in the scoring matrix headers.
+        if let Some(&dom_score) = sc.get(&dom_str) {
+            for (aa_name, score) in sc {
+                if *score > dom_score {
+                    if let Some(byte) = aa_name.bytes().next() {
+                        tolerated_aas.push(byte);
+                    }
                 }
             }
         }
 
         // --- Step 4: Mutate Sequences Based on Tolerance ---
-        // Rule:
-        // - Gap ('-') -> Remains Gap
-        // - Tolerated AA -> Mutate to 'C' (Conserved/Compatible)
-        // - Non-Tolerated AA -> Mutate to 'A' (Aberrant/Different)
         for (_, seq) in &mut records {
             let aa = seq[i];
             if aa == b'-' {

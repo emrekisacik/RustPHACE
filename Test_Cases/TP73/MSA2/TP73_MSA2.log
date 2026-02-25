@@ -5,7 +5,7 @@ Olga Chernomor, Heiko Schmidt, Dominik Schrempf, Michael Woodhams.
 Host:    EMRE-KISACIK (AVX2, FMA3, 3 GB RAM)
 Command: iqtree2 -s MSA2/TP73_MSA2.fasta -te TP73.treefile -blfix -m Data/vals_MSA2.txt -asr --prefix TP73_MSA2 --seed 20 -T AUTO
 Seed:    20 (Using SPRNG - Scalable Parallel Random Number Generator)
-Time:    Wed Feb 18 19:01:45 2026
+Time:    Wed Feb 25 17:50:43 2026
 Kernel:  AVX+FMA - auto-detect threads (4 CPU cores detected)
 
 Reading alignment file MSA2/TP73_MSA2.fasta ... Fasta format detected
@@ -192,11 +192,11 @@ Base frequencies:  A: 0.000  C: 0.500  G: 0.500  T: 0.000
 NOTE: 0 MB RAM (0 GB) is required!
 Measuring multi-threading efficiency up to 4 CPU cores
 Increase to 10 rounds for branch lengths
-223 trees examined
-Threads: 1 / Time: 4.006 sec / Speedup: 1.000 / Efficiency: 100% / LogL: -16741
-Threads: 2 / Time: 3.857 sec / Speedup: 1.039 / Efficiency: 52% / LogL: -16741
-Threads: 3 / Time: 4.371 sec / Speedup: 0.917 / Efficiency: 31% / LogL: -16741
-BEST NUMBER OF THREADS: 1
+181 trees examined
+Threads: 1 / Time: 4.027 sec / Speedup: 1.000 / Efficiency: 100% / LogL: -16759
+Threads: 2 / Time: 3.118 sec / Speedup: 1.291 / Efficiency: 65% / LogL: -16759
+Threads: 3 / Time: 13.784 sec / Speedup: 0.292 / Efficiency: 10% / LogL: -16759
+BEST NUMBER OF THREADS: 2
 
 Estimate model parameters (epsilon = 0.010)
 1. Initial log-likelihood: -28526.031
@@ -211,8 +211,8 @@ Total tree length: 8.759
 Total number of iterations: 0
 CPU time used for tree search: 0.000 sec (0h:0m:0s)
 Wall-clock time used for tree search: 0.000 sec (0h:0m:0s)
-Total CPU time used: 23.972 sec (0h:0m:23s)
-Total wall-clock time used: 12.577 sec (0h:0m:12s)
+Total CPU time used: 41.576 sec (0h:0m:41s)
+Total wall-clock time used: 21.470 sec (0h:0m:21s)
 
 Analysis results written to: 
   IQ-TREE report:                TP73_MSA2.iqtree
@@ -220,4 +220,4 @@ Analysis results written to:
   Ancestral state:               TP73_MSA2.state
   Screen log file:               TP73_MSA2.log
 
-Date and Time: Wed Feb 18 19:01:58 2026
+Date and Time: Wed Feb 25 17:51:05 2026
