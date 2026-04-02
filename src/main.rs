@@ -8,6 +8,7 @@ mod msa2matrix;
 mod msa1matrix;
 mod matrices;
 mod phace;
+mod interphace;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -44,7 +45,7 @@ fn main() {
                 eprintln!("Error: {}", e);
                 process::exit(1);
             }
-        },    
+        },
         "msa2matrix" => {
              if let Err(e) = msa2matrix::msa2matrix(id) {
                 eprintln!("Error: {}", e);
@@ -59,6 +60,12 @@ fn main() {
         },
         "phace" => {
             if let Err(e) = phace::phace(id) {
+                eprintln!("Error: {}", e);
+                process::exit(1);
+            }
+        },
+        "interphace" => {
+            if let Err(e) = interphace::interphace(id) {
                 eprintln!("Error: {}", e);
                 process::exit(1);
             }

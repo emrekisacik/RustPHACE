@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use bio::io::fasta;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -8,12 +9,10 @@ const EPS: f64 = 1e-15;
 
 pub fn msa1(id: &str) -> Result<()> {
 
-    // Define file paths dynamically based on the input ID
     let csv_path = format!("ToleranceScores/{}.csv", id);
     let fasta_path = format!("{}_MaskedMSA.fasta", id);
     let output_path = format!("MSA1/{}_MSA1.fasta", id);
 
-    // --- Step 1: Read and Transform Tolerance Scores ---
     let mut rdr = csv::ReaderBuilder::new()
         .from_path(&csv_path)
         .context(format!("Failed to read CSV: {}", csv_path))?;
@@ -36,7 +35,6 @@ pub fn msa1(id: &str) -> Result<()> {
         scores_matrix.push(row_scores);
     }
 
-    // --- Step 2: Read Input FASTA MSA ---
     let reader = fasta::Reader::from_file(&fasta_path)
         .context(format!("Failed to read FASTA: {}", fasta_path))?;
 
@@ -53,8 +51,14 @@ pub fn msa1(id: &str) -> Result<()> {
 
     let seq_len = records[0].1.len();
 
-    // --- Step 3: Process Each Column of the MSA ---
+    let pb = ProgressBar::new(seq_len as u64);
+    println!("\x1b[1;32mGenerating MSA1...\x1b[0m");
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.green.bold}] {pos}/{len} ({eta})").unwrap()
+        .progress_chars("━╸ "));
+
     for i in 0..seq_len {
+        pb.inc(1);
         if i >= scores_matrix.len() {
             break; 
         }
@@ -114,6 +118,8 @@ pub fn msa1(id: &str) -> Result<()> {
             }
         }
     }
+    
+    pb.finish();
 
     // --- Step 5: Write the Modified MSA to Output File ---
     if let Some(parent) = Path::new(&output_path).parent() {

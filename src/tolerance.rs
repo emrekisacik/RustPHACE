@@ -1,3 +1,4 @@
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
@@ -415,7 +416,14 @@ pub fn tolerance(id: &str) -> Result<(), Box<dyn Error>> {
     for aa in AMINO_ACIDS { write!(writer, ",{}", aa)?; }
     writeln!(writer)?;
 
+    let pb = ProgressBar::new(total_pos as u64);
+    println!("\x1b[1;32mCalculating tolerance scores...\x1b[0m");
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.green.bold}] {pos}/{len} ({eta})").unwrap()
+        .progress_chars("━╸ "));
+
     for ps in 1..=total_pos {
+        pb.inc(1);
         let scores = calculate_score(ps, &tree, &state, &msa, &weights);
         write!(writer, "{}", ps)?;
         for s in &scores { 
@@ -427,6 +435,8 @@ pub fn tolerance(id: &str) -> Result<(), Box<dyn Error>> {
         }
         writeln!(writer)?;
     }
+
+    pb.finish();
     
     Ok(())
 }

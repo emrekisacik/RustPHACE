@@ -31,7 +31,6 @@ cargo run phace "${id}"
 
 mkdir -p Inputs/
 mv "${id}_MaskedMSA.fasta" "${id}.treefile" "${id}.state" Inputs/
-
 dir="Test_Cases/${id}"
 mkdir -p "${dir}"
 mv MSA1 MSA2 Matrices ToleranceScores Inputs "${id}_PHACE.csv" "${dir}/"

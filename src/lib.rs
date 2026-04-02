@@ -5,3 +5,4 @@ pub mod msa2matrix;
 pub mod msa1matrix;
 pub mod matrices;
 pub mod phace;
+pub mod interphace;

@@ -1,6 +1,5 @@
 use bio::io::fasta;
-use csv::ReaderBuilder;
-use csv::Writer;
+use csv::{ReaderBuilder, Writer};
 use indicatif::{ProgressBar, ProgressStyle};
 use ndarray::prelude::*;
 use serde::Deserialize;
@@ -9,7 +8,7 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 
-pub fn phace(id: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn interphace(id: &str) -> Result<(), Box<dyn Error>> {
     let f_total = format!("Matrices/{}_mat_total_change.csv", id);
     let f_aa = format!("Matrices/{}_mat_aa_change.csv", id);
     let f_aff_num = format!("Matrices/{}_mat_aff_branch_num.csv", id);
@@ -18,6 +17,7 @@ pub fn phace(id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let fasta_msa = format!("MSA1/{}_MSA1.fasta", id);
     let fasta_masked = format!("{}_MaskedMSA.fasta", id);
     let treefile = format!("MSA1/{}_MSA1.treefile", id);
+    let f_partition = format!("{}_partitions.txt", id);
 
     let mat_total_change = read_numeric_matrix(&f_total)?;
     let mat_aa_change = read_string_matrix(&f_aa)?;
@@ -37,6 +37,7 @@ pub fn phace(id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let total_pos = first_seq.len();
     let mut msa: Vec<Vec<char>> = Vec::with_capacity(tip_order.len());
     let mut msa_org: Vec<Vec<char>> = Vec::with_capacity(tip_order.len());
+
     for name in &tip_order {
         let seq = msa_map.get(name).ok_or(format!("{} not found in MSA fasta", name))?;
         let seq_mask = msa_org_map.get(name).ok_or(format!("{} not found in Masked MSA fasta", name))?;
@@ -106,135 +107,175 @@ pub fn phace(id: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut out: Vec<(usize, usize, f64)> = Vec::new();
 
-    let total_iterations = (total_pos as u64 * total_pos.saturating_sub(1) as u64) / 2;
+    let partitions = parse_partitions(&f_partition)?;
+
+    let mut total_iterations: u64 = 0;
+    for p1_idx in 0..partitions.len() {
+        for p2_idx in (p1_idx + 1)..partitions.len() {
+            let (start1, end1) = partitions[p1_idx];
+            let (start2, end2) = partitions[p2_idx];
+            let end1_safe = end1.min(total_pos);
+            let end2_safe = end2.min(total_pos);
+            let count1 = end1_safe.saturating_sub(start1) as u64;
+            let count2 = end2_safe.saturating_sub(start2) as u64;
+            total_iterations += count1 * count2;
+        }
+    }
+
     let pb = ProgressBar::new(total_iterations);
     println!("\x1b[1;32mCalculating PHACE scores...\x1b[0m");
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{bar:40.green.bold}] {pos}/{len} ({eta})").unwrap()
         .progress_chars("━╸ "));
 
-    for i1 in 0..(total_pos.saturating_sub(1)) {
-        for i2 in (i1 + 1)..total_pos {
-            pb.inc(1);
-            let mut weight_branch = weight_branch_base.clone();
+    for p1_idx in 0..partitions.len() {
+        for p2_idx in (p1_idx + 1)..partitions.len() {
+            let (start1, end1) = partitions[p1_idx];
+            let (start2, end2) = partitions[p2_idx];
 
-            let mut gap_names: HashSet<&String> = HashSet::new();
-            for g in &gaps_per_pos[i1] { gap_names.insert(g); }
-            for g in &gaps_per_pos[i2] { gap_names.insert(g); }
+            let end1_safe = end1.min(total_pos);
+            let end2_safe = end2.min(total_pos);
 
-            let cons1 = cons_per_pos[i1];
-            let cons2 = cons_per_pos[i2];
+            for pos1 in start1..end1_safe {
+                for pos2 in start2..end2_safe {
+                    pb.inc(1);
 
-            let dif1_col = &dif_cols[i1];
-            let dif2_col = &dif_cols[i2];
-            let num_eff1_col = &num_eff_cols[i1];
-            let num_eff2_col = &num_eff_cols[i2];
-            let pos1_aff_br_col = &pos_aff_br_cols[i1];
-            let pos2_aff_br_col = &pos_aff_br_cols[i2];
-            let dif_aa1_col = &dif_aa_cols[i1];
-            let dif_aa2_col = &dif_aa_cols[i2];
+                    let (i1, i2) = if pos1 < pos2 { (pos1, pos2) } else { (pos2, pos1) };
 
-            let br1 = &br_cols[i1];
-            let br2 = &br_cols[i2];
-            
-            let mut uniq_br: HashSet<&String> = HashSet::new();
-            for b in br1.iter().chain(br2.iter()) { uniq_br.insert(b); }
-            let ww = uniq_br.len();
-            let com_ww = br1.iter().filter(|b| br2.contains(*b)).count();
-            let mut weight_inc1 = 1.0 - ((ww as f64 - com_ww as f64) / num_branch as f64);
-            if weight_inc1 < 0.0 { weight_inc1 = 0.0; }
+                    let mut weight_branch = weight_branch_base.clone();
 
-            let mut pos1_totalscore = dif1_col.clone();
-            let mut pos2_totalscore = dif2_col.clone();
+                    let mut gap_names: HashSet<&String> = HashSet::new();
+                    for g in &gaps_per_pos[i1] { gap_names.insert(g); }
+                    for g in &gaps_per_pos[i2] { gap_names.insert(g); }
 
-            let score3: f64;
-            if std::cmp::min(cons1, cons2) == 1 {
-                score3 = -1.0;
-            } else {
-                let dif_tot: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| a - b).collect();
-                let loc1: Vec<usize> = dif_tot.iter().enumerate().filter(|(_, v)| **v >= 0.5).map(|(i, _)| i).collect();
-                let loc2: Vec<usize> = dif_tot.iter().enumerate().filter(|(_, v)| **v <= -0.5).map(|(i, _)| i).collect();
+                    let cons1 = cons_per_pos[i1];
+                    let cons2 = cons_per_pos[i2];
 
-                if !loc1.is_empty() {
-                    let indices_to_check = if loc1.len() == 1 { vec![loc1[0]] } else { loc1.clone() };
-                    for lx in indices_to_check {
-                        let aff_lf = num_eff1_col[lx] as usize;
-                        let aff_br_list: Vec<&str> = pos1_aff_br_col[lx].split('-').filter(|s| *s != "0" && !s.is_empty()).collect();
-                        
-                        if aff_lf == 1 && !aff_br_list.is_empty() {
-                            if let Some(row_idx) = tip_order.iter().position(|n| n == aff_br_list[0]) {
-                                let alt = msa_org[row_idx][i1];
-                                let obs_org = msa_org.iter().filter(|r| r[i1] == alt).count();
-                                if obs_org == 1 {
-                                    pos1_totalscore[lx] = 0.0;
-                                    pos2_totalscore[lx] = 0.0;
+                    let dif1_col = &dif_cols[i1];
+                    let dif2_col = &dif_cols[i2];
+                    let num_eff1_col = &num_eff_cols[i1];
+                    let num_eff2_col = &num_eff_cols[i2];
+                    let pos1_aff_br_col = &pos_aff_br_cols[i1];
+                    let pos2_aff_br_col = &pos_aff_br_cols[i2];
+                    let dif_aa1_col = &dif_aa_cols[i1];
+                    let dif_aa2_col = &dif_aa_cols[i2];
+
+                    let br1 = &br_cols[i1];
+                    let br2 = &br_cols[i2];
+
+                    let mut uniq_br: HashSet<&String> = HashSet::new();
+                    for b in br1.iter().chain(br2.iter()) { uniq_br.insert(b); }
+                    let ww = uniq_br.len();
+                    let com_ww = br1.iter().filter(|b| br2.contains(*b)).count();
+                    let mut weight_inc1 = 1.0 - ((ww as f64 - com_ww as f64) / num_branch as f64);
+                    if weight_inc1 < 0.0 { weight_inc1 = 0.0; }
+
+                    let mut pos1_totalscore = dif1_col.clone();
+                    let mut pos2_totalscore = dif2_col.clone();
+
+                    let score3: f64;
+                    if std::cmp::min(cons1, cons2) == 1 {
+                        score3 = -1.0;
+                    } else {
+                        let dif_tot: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| a - b).collect();
+                        let loc1: Vec<usize> = dif_tot.iter().enumerate().filter(|(_, v)| **v >= 0.5).map(|(i, _)| i).collect();
+                        let loc2: Vec<usize> = dif_tot.iter().enumerate().filter(|(_, v)| **v <= -0.5).map(|(i, _)| i).collect();
+
+                        if !loc1.is_empty() {
+                            let indices_to_check = if loc1.len() == 1 { vec![loc1[0]] } else { loc1.clone() };
+                            for lx in indices_to_check {
+                                let aff_lf = num_eff1_col[lx] as usize;
+                                let aff_br_list: Vec<&str> = pos1_aff_br_col[lx].split('-').filter(|s| *s != "0" && !s.is_empty()).collect();
+
+                                if aff_lf == 1 && !aff_br_list.is_empty() {
+                                    if let Some(row_idx) = tip_order.iter().position(|n| n == aff_br_list[0]) {
+                                        let alt = msa_org[row_idx][i1];
+                                        let obs_org = msa_org.iter().filter(|r| r[i1] == alt).count();
+                                        if obs_org == 1 {
+                                            pos1_totalscore[lx] = 0.0;
+                                            pos2_totalscore[lx] = 0.0;
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
 
-                if !loc2.is_empty() {
-                    let indices_to_check = if loc2.len() == 1 { vec![loc2[0]] } else { loc2.clone() };
-                    for lx in indices_to_check {
-                        let aff_lf = num_eff2_col[lx] as usize;
-                        let aff_br_list: Vec<&str> = pos2_aff_br_col[lx].split('-').filter(|s| *s != "0" && !s.is_empty()).collect();
-                        
-                        if aff_lf == 1 && !aff_br_list.is_empty() {
-                             if let Some(row_idx) = tip_order.iter().position(|n| n == aff_br_list[0]) {
-                                let alt = msa_org[row_idx][i2];
-                                let obs_org = msa_org.iter().filter(|r| r[i2] == alt).count();
-                                if obs_org == 1 {
-                                    pos1_totalscore[lx] = 0.0;
-                                    pos2_totalscore[lx] = 0.0;
+                        if !loc2.is_empty() {
+                            let indices_to_check = if loc2.len() == 1 { vec![loc2[0]] } else { loc2.clone() };
+                            for lx in indices_to_check {
+                                let aff_lf = num_eff2_col[lx] as usize;
+                                let aff_br_list: Vec<&str> = pos2_aff_br_col[lx].split('-').filter(|s| *s != "0" && !s.is_empty()).collect();
+
+                                if aff_lf == 1 && !aff_br_list.is_empty() {
+                                     if let Some(row_idx) = tip_order.iter().position(|n| n == aff_br_list[0]) {
+                                        let alt = msa_org[row_idx][i2];
+                                        let obs_org = msa_org.iter().filter(|r| r[i2] == alt).count();
+                                        if obs_org == 1 {
+                                            pos1_totalscore[lx] = 0.0;
+                                            pos2_totalscore[lx] = 0.0;
+                                        }
+                                    }
                                 }
                             }
                         }
+
+                        let inc_gap1: Vec<usize> = (0..n_branches).filter(|&r| dif_aa1_col[r] == "X-" && dif_aa2_col[r] != "--" && dif_aa2_col[r] != "X-").collect();
+                        let inc_gap2: Vec<usize> = (0..n_branches).filter(|&r| dif_aa2_col[r] == "X-" && dif_aa1_col[r] != "--" && dif_aa1_col[r] != "X-").collect();
+                        for &idx in &inc_gap1 { pos1_totalscore[idx] = 0.0; }
+                        for &idx in &inc_gap2 { pos2_totalscore[idx] = 0.0; }
+
+                        let sum_p1: f64 = pos1_totalscore.iter().sum();
+                        let sum_p2: f64 = pos2_totalscore.iter().sum();
+                        let mx_p1: f64 = pos1_totalscore.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                        let mx_p2: f64 = pos2_totalscore.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+                        if sum_p1 >= 1.0 && sum_p2 >= 1.0 && mx_p1 >= 0.5 && mx_p2 >= 0.5 {
+                            let df: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| (a - b).abs()).collect();
+                            let plc: Vec<usize> = df.iter().enumerate().filter(|(_, v)| **v >= 0.5).map(|(i, _)| i).collect();
+                            for &p in &plc { weight_branch[p] = 1.0; }
+
+                            let cc_vec: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| a.max(*b)).collect();
+                            let mut cc_nonzero = cc_vec.clone();
+                            for c in cc_nonzero.iter_mut() { if *c == 0.0 { *c = 1.0; } }
+
+                            let weight_branch2: Vec<f64> = weight_branch.iter().zip(cc_nonzero.iter()).map(|(w,c)| (w * c).sqrt()).collect();
+
+                            score3 = wccc(&pos1_totalscore, &pos2_totalscore, &weight_branch2) * weight_inc1;
+                        } else {
+                            score3 = -1.0;
+                        }
                     }
-                }
 
-                let inc_gap1: Vec<usize> = (0..n_branches).filter(|&r| dif_aa1_col[r] == "X-" && dif_aa2_col[r] != "--" && dif_aa2_col[r] != "X-").collect();
-                let inc_gap2: Vec<usize> = (0..n_branches).filter(|&r| dif_aa2_col[r] == "X-" && dif_aa1_col[r] != "--" && dif_aa1_col[r] != "X-").collect();
-                for &idx in &inc_gap1 { pos1_totalscore[idx] = 0.0; }
-                for &idx in &inc_gap2 { pos2_totalscore[idx] = 0.0; }
-
-                let sum_p1: f64 = pos1_totalscore.iter().sum();
-                let sum_p2: f64 = pos2_totalscore.iter().sum();
-                let mx_p1: f64 = pos1_totalscore.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                let mx_p2: f64 = pos2_totalscore.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-                if sum_p1 >= 1.0 && sum_p2 >= 1.0 && mx_p1 >= 0.5 && mx_p2 >= 0.5 {
-                    let df: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| (a - b).abs()).collect();
-                    let plc: Vec<usize> = df.iter().enumerate().filter(|(_, v)| **v >= 0.5).map(|(i, _)| i).collect();
-                    for &p in &plc { weight_branch[p] = 1.0; }
-
-                    let cc_vec: Vec<f64> = pos1_totalscore.iter().zip(pos2_totalscore.iter()).map(|(a,b)| a.max(*b)).collect();
-                    let mut cc_nonzero = cc_vec.clone();
-                    for c in cc_nonzero.iter_mut() { if *c == 0.0 { *c = 1.0; } }
-
-                    let weight_branch2: Vec<f64> = weight_branch.iter().zip(cc_nonzero.iter()).map(|(w,c)| (w * c).sqrt()).collect();
-                    
-                    score3 = wccc(&pos1_totalscore, &pos2_totalscore, &weight_branch2) * weight_inc1;
-                } else {
-                    score3 = -1.0;
+                    out.push((pos1 - start1 + 1, pos2 - start2 + 1, score3));
                 }
             }
-
-            out.push((i1 + 1, i2 + 1, score3));
         }
     }
 
     pb.finish();
 
-    let outname = format!("{}_PHACE.csv", id);
+    let outname = format!("{}_interPHACE.csv", id);
     let mut wtr = Writer::from_path(&outname)?;
-    wtr.write_record(&["Pos1", "Pos2", "PHACE_Score"])?;
+    wtr.write_record(&["Protein1", "Protein2", "PHACE_Score"])?;
     for (p1, p2, score) in out {
         wtr.write_record(&[p1.to_string(), p2.to_string(), format!("{}", score)])?;
     }
     wtr.flush()?;
 
     Ok(())
+}
+
+fn parse_partitions<P: AsRef<Path>>(path: P) -> Result<Vec<(usize, usize)>, Box<dyn Error>> {
+    let s = fs::read_to_string(path)?;
+    let re = regex::Regex::new(r"=\s*(\d+)\s*-\s*(\d+)").unwrap();
+    let mut parts = Vec::new();
+
+    for cap in re.captures_iter(&s) {
+        let start: usize = cap[1].parse()?;
+        let end: usize = cap[2].parse()?;
+        parts.push((start - 1, end));
+    }
+    Ok(parts)
 }
 
 fn read_numeric_matrix<P: AsRef<Path>>(path: P) -> Result<Array2<f64>, Box<dyn Error>> {
@@ -309,7 +350,7 @@ fn extract_tips_from_newick<P: AsRef<Path>>(path: P) -> Result<Vec<String>, Box<
     let s = fs::read_to_string(path)?;
     let re_single = regex::Regex::new(r"[(,]\s*'([^']+)'\s*:").unwrap();
     let re_double = regex::Regex::new(r#"[(,]\s*"([^"]+)"\s*:"#).unwrap();
-    let re_unq = regex::Regex::new(r"[(,]\s*([A-Za-z0-9_\.\-]+)\s*:").unwrap();
+    let re_unq = regex::Regex::new(r"[(,]\s*([A-Za-z0-9_\.\-\|]+)\s*:").unwrap();
 
     let mut found: Vec<String> = Vec::new();
     for cap in re_single.captures_iter(&s) {
